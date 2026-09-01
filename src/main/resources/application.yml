@@ -1,0 +1,86 @@
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,text/css,text/javascript,application/javascript
+    min-response-size: 1024   # compress only responses > 1 KB
+spring:
+  application:
+    name: independent-school-data
+  servlet:
+    multipart:
+      max-file-size: 50MB       # Max size for a single file upload
+      max-request-size: 50MB    # Max size for the entire request
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url:
+    username:
+    password:
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+#    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  mail:
+    host: smtp-relay.brevo.com
+    port: 587
+    username: ${MAIL_USERNAME:} # Keep using the variable for security
+    password: ${MAIL_PASSWORD:} # Keep using the variable for security
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+mail:
+  author: ${MAIL_USERNAME}
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration: ${JWT_EXPIRATION:360000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.paulo.independentschooldata: INFO
+
+stripe:
+  secret:
+    key: ${STRIPE_SECRET_KEY:}
+  publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
+# Cloudflare R2 Example (Recommended for tiny server)
+# Use the S3-compatible API credentials from Cloudflare R2
+cloudflare:
+  r2:
+    access-key: xxxxxxxxxxxxxxxxxx
+    secret-key: xxxxxxxxxxxxxxxxxx
+    bucket-name: independent-schools-uk
+    endpoint: https://xxxxxxxxxxxxxxxxxx.r2.cloudflarestorage.com
+    public-url: xxxxxxxxxxxxxxxxxx

@@ -1,0 +1,25 @@
+services:
+  school-app:
+    image: 710403945428.dkr.ecr.eu-west-2.amazonaws.com/independent-schools-uk-app:latest
+    container_name: school-app  # Changed to match Caddy's reverse_proxy name
+    restart: unless-stopped
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    networks:
+      - proxy-network           # Join the shared network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  proxy-network:
+    external: true              # Use the network created manually on EC2

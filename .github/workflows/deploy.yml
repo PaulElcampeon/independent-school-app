@@ -1,0 +1,76 @@
+name: Deploy School App to EC2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-west-2
+  ECR_REGISTRY: xxxxxxxxxxxxxxxxx
+  ECR_REPOSITORY: independent-schools-uk-app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+
+      - name: Build and push image
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest \
+            --push .
+
+      - name: Deploy to EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Create isolated folder for this app
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ${USER}@${HOST} "mkdir -p ~/deploy/school-app"
+          
+          # Only copy the compose file (Caddy is managed elsewhere)
+          scp -i private_key.pem -o StrictHostKeyChecking=no docker-compose.yml ${USER}@${HOST}:/home/${USER}/deploy/school-app/
+          
+          ssh -i private_key.pem -o StrictHostKeyChecking=no ${USER}@${HOST} \
+            AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+            AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+            "bash -s" << 'EOF'
+            cd ~/deploy/school-app
+          
+            # Login to ECR
+            aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin 710403945428.dkr.ecr.eu-west-2.amazonaws.com
+          
+            # Pull and restart only the school-app
+            docker-compose pull
+            docker-compose up -d --remove-orphans
+          
+            docker image prune --force
+            echo "School App Deployment complete!"
+          EOF
+          
+          rm -f private_key.pem
